@@ -1,17 +1,21 @@
-package com.mark.views;
+package com.mark.views.views;
 
 import android.graphics.Color;
 import android.graphics.PointF;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.MotionEvent;
+import android.view.View;
+import android.view.ViewGroup;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
-import com.mark.views.views.KLine1;
-import com.mark.views.views.KLine2;
-import com.mark.views.views.LineGraph1;
-import com.mark.views.views.LineGraph2;
+import com.mark.views.R;
+import com.mark.views.ScrollLinearLayoutManager;
 import com.mark.views.views.base.ChartViewData;
 import com.mark.views.views.base.CustomScrollView;
 import com.mark.views.views.base.ILine;
@@ -31,7 +35,7 @@ import java.util.Random;
 import static com.mark.views.DateUtil.dateFormater2;
 
 
-public class MainActivity extends AppCompatActivity {
+public class MainTestActivity extends AppCompatActivity {
 
 
     private ChartViewData chartViewData;
@@ -41,13 +45,41 @@ public class MainActivity extends AppCompatActivity {
     private LineGraph2 line2;
     private KLine1 kLine1;
     private KLine2 kLine2;
+    ScrollLinearLayoutManager manager;
+    private RecyclerView recyclerView;
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+            @Override
+            protected void onCreate(Bundle savedInstanceState) {
+                super.onCreate(savedInstanceState);
+                setContentView(R.layout.main);
+                kChartViewData = new KChartViewData();
+      /*  kChartViewData.register(kLine1);
+        kChartViewData.register(kLine2);*/
+                recyclerView = findViewById(R.id.recyclerView);
+                recyclerView.postDelayed(this::dataK,1000);
+                 manager = new ScrollLinearLayoutManager(this);
+                recyclerView.setLayoutManager(manager);
+                recyclerView.setAdapter(new RecyclerView.Adapter() {
+                    @NonNull
+                    @Override
+                    public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+                        View view = LayoutInflater.from(MainTestActivity.this).inflate(R.layout.item,null);
+                        return new RecyclerView.ViewHolder(view) {};
+                    }
 
-        line = findViewById(R.id.line);
+                    @Override
+                    public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+                        kChartViewData.register( holder.itemView.findViewById(R.id.line));
+                        ((KLine1) holder.itemView.findViewById(R.id.line)).setManager(manager);
+
+                    }
+
+            @Override
+            public int getItemCount() {
+                return 10;
+            }
+        });
+        /*line = findViewById(R.id.line);
         line2 = findViewById(R.id.line2);
         kLine1 = findViewById(R.id.kline1);
         kLine2 = findViewById(R.id.kline2);
@@ -63,7 +95,7 @@ public class MainActivity extends AppCompatActivity {
         kChartViewData.register(kLine2);
         kLine1.postDelayed(this::dataK,100);
         CustomScrollView customScrollView = findViewById(R.id.scrollView);
-        customScrollView.addDisallowViews(kLine1);
+        customScrollView.addDisallowViews(kLine1);*/
       //  customScrollView.addDisallowViews(kLine2);
 
     }

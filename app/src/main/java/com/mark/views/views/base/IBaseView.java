@@ -12,11 +12,16 @@ public interface IBaseView {
 
     /**
      * 初始化view参数
-     *
+     *此时不能做变量赋值
      * @param context
      * @param attr
      */
     void initView(Context context, AttributeSet attr);
+
+    /**
+     * 初始化变量
+     */
+    void initParams();
 
     /**
      * 初始化所有画笔

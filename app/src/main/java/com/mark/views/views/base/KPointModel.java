@@ -1,5 +1,7 @@
 package com.mark.views.views.base;
 
+import android.graphics.PointF;
+
 /**
  * @Author : Mark
  * Date    : 2020/9/7  9:48
@@ -7,24 +9,26 @@ package com.mark.views.views.base;
  */
 public class KPointModel {
 
+    public static final int RAISE = 1,DROP = -1,LEVEL = 0;
+
     /**
      * 开盘价
      */
-    private double start;
+    private float start;
     /**
      * 收盘价
      */
-    private double end;
+    private float end;
 
     /**
      * 最高点
      */
-    private double higher;
+    private float higher;
 
     /**
      * 最低点
      */
-    private double lower;
+    private float lower;
 
     /**
      * 日期
@@ -38,13 +42,35 @@ public class KPointModel {
     /**
      * 四个数据最大值
      */
-    private double max;
+    private float max;
     /**
      * 四个数据最小值
      */
-    private double min;
+    private float min;
 
-    public KPointModel(double start, double end, double higher, double lower, String date) {
+    /**
+     * K柱底线中心点坐标对应值
+     *
+     * @return
+     */
+    private PointF bottomPointF = new PointF();
+    /**
+     * K柱顶线中心点坐标对应值
+     *
+     * @return
+     */
+    private PointF topPointF= new PointF();
+
+    /**
+     * 上影线点
+     */
+    private PointF raisePointF= new PointF();
+    /**
+     * 下影线点
+     */
+    private PointF dropPointF= new PointF();
+
+    public KPointModel(float start, float end, float higher, float lower, String date) {
         this.start = start;
         this.end = end;
         this.higher = higher;
@@ -65,47 +91,62 @@ public class KPointModel {
      * @param start 开盘价
      * @param end 收盘价
      */
-    private void setSEState(double start,double end) {
+    private void setSEState(float start,float end) {
         this.start = start;
         this.end = end;
         if (start>end){
-            this.state = -1;
+            this.state = DROP;
         }else if (start<end){
-            this.state = 1;
+            this.state = RAISE;
         }else{
-            this.state = 0;
+            this.state = LEVEL;
         }
     }
 
-    public double getStart() {
+    public float start() {
         return start;
     }
 
-    public double getEnd() {
+    public float end() {
         return end;
     }
 
-    public double getHigher() {
+    public float higher() {
         return higher;
     }
 
-    public double getLower() {
+    public float lower() {
         return lower;
     }
 
-    public String getDate() {
+    public String date() {
         return date;
     }
 
-    public int getState() {
+    public int state() {
         return state;
     }
 
-    public double getMax() {
+    public float maxValue() {
         return max;
     }
 
-    public double getMin() {
+    public float minValue() {
         return min;
+    }
+
+    public PointF bottomPointF() {
+        return bottomPointF;
+    }
+
+    public PointF raisePointF() {
+        return raisePointF;
+    }
+
+    public PointF dropPointF() {
+        return dropPointF;
+    }
+    public PointF topPointF() {
+        return topPointF;
     }
 }

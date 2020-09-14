@@ -40,6 +40,7 @@ public abstract class BaseView extends View implements IBaseView {
      * 绘制背景的区域
      */
     private RectF bgRectF;
+    private AttributeSet attrs;
 
     // <editor-fold  desc= "构造">
     public BaseView(Context context) {
@@ -66,9 +67,22 @@ public abstract class BaseView extends View implements IBaseView {
     private void init(Context context, AttributeSet attrs) {
         setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         this.context = context;
+        this.attrs = attrs;
         bgRectF = new RectF();
-        view(context, attrs);
+        view(context, null);
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        initParams();
         paint();
+    }
+
+    @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+
     }
 
     private void view(Context context, AttributeSet attrs) {

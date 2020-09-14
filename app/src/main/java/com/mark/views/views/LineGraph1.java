@@ -4,12 +4,11 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
-import android.graphics.PorterDuff;
-import android.graphics.PorterDuffXfermode;
 import android.graphics.RectF;
 import android.util.AttributeSet;
 
-import com.mark.views.views.base.GraphBaseView;
+import com.mark.views.views.base.GraphAttribute;
+import com.mark.views.views.base.LineGraphBaseView;
 import com.mark.views.views.base.IPoint;
 
 /**
@@ -17,7 +16,7 @@ import com.mark.views.views.base.IPoint;
  * Date    : 2020/7/7  17:56
  * Desc    :测试图案
  */
-public class LineGraph1 extends GraphBaseView {
+public class LineGraph1 extends LineGraphBaseView {
 
     private Paint xyLinePaint;
 
@@ -37,6 +36,15 @@ public class LineGraph1 extends GraphBaseView {
 
     public LineGraph1(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
         super(context, attrs, defStyleAttr, defStyleRes);
+    }
+
+    @Override
+    protected GraphAttribute getAttribute() {
+        return    new GraphAttribute.GraphAttributeBuilder() .setGrid(true,false,false)
+                .setArrays(new int[]{30,10,10,20},new int[]{0,0,0,0},new int[]{18,6})
+                .setPermissions(false,true,true,true)
+                .setNeedGradient(true)
+                .setBézier(true).build();
     }
 
     @Override
@@ -89,11 +97,12 @@ public class LineGraph1 extends GraphBaseView {
             }
             canvas.drawText(value,x,graphDrawableRectF.bottom+getTextHeight(textPaintX,value)+DIP_5,textPaintX);
 
-            RectF rectF = new RectF(0, graphDrawableRectF.bottom, graphDrawableRectF.left, height);
-            canvas.drawRect(rectF, mBgPaint);
-            RectF rectF2 = new RectF(graphDrawableRectF.right, graphDrawableRectF.bottom, width, height);
-            canvas.drawRect(rectF2, mBgPaint);
+
         }
+        RectF rectF = new RectF(0, graphDrawableRectF.bottom, graphDrawableRectF.left, height);
+        canvas.drawRect(rectF, mBgPaint);
+        RectF rectF2 = new RectF(graphDrawableRectF.right, graphDrawableRectF.bottom, width, height);
+        canvas.drawRect(rectF2, mBgPaint);
         //画y轴刻度文字
         if (yCalibrationCount>1){
             float yStep = graphDrawableRectF.height()/(yCalibrationCount-1);

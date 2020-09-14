@@ -4,14 +4,8 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.DashPathEffect;
-import android.graphics.LinearGradient;
 import android.graphics.Paint;
-import android.graphics.Path;
-import android.graphics.PointF;
-import android.graphics.PorterDuff;
-import android.graphics.PorterDuffXfermode;
 import android.graphics.RectF;
-import android.graphics.Shader;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Message;
@@ -21,11 +15,11 @@ import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 
-import com.mark.views.common.observer.Observer;
-
-import java.util.List;
+import com.mark.views.ScrollLinearLayoutManager;
+import com.mark.views.views.KLine1;
 
 import static android.view.MotionEvent.ACTION_CANCEL;
+import static android.view.MotionEvent.ACTION_MOVE;
 
 
 /**
@@ -34,15 +28,15 @@ import static android.view.MotionEvent.ACTION_CANCEL;
  * Desc    :折线图的基类，如果不考虑放大缩小的交互，绘图的速度可以由
  * path.rLineto()优化
  */
-public abstract class GraphBaseView extends BaseView implements ScaleGestureDetector.OnScaleGestureListener, GestureDetector.OnGestureListener, Observer<IRootChartData> {
+public abstract class GraphBaseView<A extends BaseAttribute> extends BaseView implements ScaleGestureDetector.OnScaleGestureListener, GestureDetector.OnGestureListener, IGraph {
 
     protected final int LONG_PRESS_EVENT = 10;//长按事件的分发
 
     /**
      * 用来比较大小用，所以取反
      */
-    private final int TEMP_MAXY = Integer.MIN_VALUE;
-    private final int TEMP_MINY = Integer.MAX_VALUE;
+    protected final int TEMP_MAXY = Integer.MIN_VALUE;
+    protected final int TEMP_MINY = Integer.MAX_VALUE;
     /**
      * 控制图形扩展区域的系数，第1个针对最大值，第2个针对最小值
      */
@@ -69,11 +63,11 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
     protected ScaleGestureDetector scaleGestureDetector; //缩放手势
     protected float maxY, minY;
     //触发时长
-    private int LONG_PRESS_TIME = 180;
+    protected int LONG_PRESS_TIME = 180;
     //是否长按的状态
-    private boolean isLongPressing;
+    protected boolean isLongPressing;
     //最新的Touch事件
-    private MotionEvent latestEvent;
+    protected MotionEvent latestEvent;
     /**
      * 可触摸区域
      */
@@ -90,15 +84,15 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
      * 图形距边框的距离
      */
     protected int leftMargin, rightMargin, topMargin, bottomMargin;
-    private Paint outRectPaint;
-    private GraphAttribute attribute;
+    protected Paint outRectPaint;
+    protected A attribute;
 
-    private int mTouchIndex = -1;
+    protected int mTouchIndex = -1;
 
     /**
      * 触摸影响半径
      */
-    private final int TOUCH_RANGE = 5;
+    protected final int TOUCH_RANGE = 5;
 
     /**
      * y轴的刻度数量
@@ -111,45 +105,42 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
     /**
      * x,y轴的网格刻度数
      */
-    private int[] gridMatrix = new int[]{10, 5};
+    protected int[] gridMatrix = new int[]{10, 5};
 
     /**
      * 网格x轴间距，网格y轴间距
      */
-    private float gridXSpace, gridYSpace;
+    protected float gridXSpace, gridYSpace;
 
-    private int gridPaintColor = Color.parseColor("#f6f6f6");
+    protected int gridPaintColor = Color.parseColor("#f6f6f6");
+    protected int outRectColor = Color.parseColor("#979797");
+    protected int outRectBgColor = Color.parseColor("#FAFAFA");
     /**
      * 四周边距
      */
-    protected int paddingLeft = 4 * DIP_10, paddingTop = DIP_10, paddingRight = DIP_10, paddingBottom = 2 * DIP_10;
-    private Paint linePaint, circlePaint, gridPaint, touchPaint;
+    protected int paddingLeft, paddingTop, paddingRight, paddingBottom;
+    protected Paint linePaint, circlePaint, gridPaint, touchPaint;
     /**
      * 第一个点的x轴坐标
      */
     protected float firstPointX;
 
-    protected List<ILine> mDatas;
-    /**
-     * 数据源
-     */
-    private IRootChartData data;
-    private Runnable mLongPressRunnable;//用来重新定义长按事件的Runable
+    protected Runnable mLongPressRunnable;//用来重新定义长按事件的Runable
 
     /**
      * 控制缩放灵敏度的阈值 数值越高，越灵敏
      */
-    private final float scaleLevel = 3;
+   // protected final float scaleLevel = 25f;
 
     /**
      * x轴总刻度数量
      */
-    private int xCalibrationCount = 0;
+    protected int xCalibrationCount = 0;
 
     /**
      * 处理所有事务的Handler
      */
-    private Handler mHandler = new Handler() {
+    protected Handler mHandler = new Handler() {
         @Override
         public void handleMessage(Message msg) {
             super.handleMessage(msg);
@@ -168,7 +159,9 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
     /**
      * 缩放手势是否在继续
      */
-    private boolean isScaling;
+    protected boolean isScaling;
+
+    private boolean verticalScrollEnable = true;
 
     // <editor-fold  desc= "构造">
     public GraphBaseView(Context context) {
@@ -197,6 +190,11 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
         this.latestEvent = latestEvent;
     }
 
+
+    public void setVerticalScrollEnable(boolean verticalScrollEnable) {
+        this.verticalScrollEnable = verticalScrollEnable;
+    }
+
     @Override
     public void initView(Context context, AttributeSet attrs) {
         gestureDetector = new GestureDetector(context, this);
@@ -215,9 +213,36 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
         graphDrawableRectF = new RectF();
         touchableRectF = new RectF();
         outSideRectF = new RectF();
-        attribute = new GraphAttribute.GraphAttributeBuilder().build();
-        firstPointX = graphDrawableRectF.left + leftMargin;
+
     }
+
+    @Override
+    public void initParams() {
+        initAttribute();
+        firstPointX =paddingLeft + leftMargin;
+    }
+
+    /**
+     * 初始化配置
+     */
+    protected void initAttribute() {
+        attribute = getAttribute();
+        this.gridMatrix = attribute.gridMatrix;
+        this.gridPaintColor = attribute.gridPaintColor;
+
+
+        this.paddingLeft = dip2px(attribute.paddings[0]);
+        this.paddingTop = dip2px(attribute.paddings[1]);
+        this.paddingRight = dip2px(attribute.paddings[2]);
+        this.paddingBottom = dip2px(attribute.paddings[3]);
+
+        this.leftMargin = dip2px(attribute.margins[0]);
+        this.topMargin = dip2px(attribute.margins[1]);
+        this.rightMargin = dip2px(attribute.margins[2]);
+        this.bottomMargin = dip2px(attribute.margins[3]);
+    }
+
+    protected abstract A getAttribute();
 
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
@@ -244,6 +269,11 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
         touchPaint.setStyle(Paint.Style.STROKE);
         touchPaint.setStrokeWidth(1f);
 
+        outRectPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        outRectPaint.setColor(outRectColor);
+        outRectPaint.setStyle(Paint.Style.STROKE);
+        outRectPaint.setStrokeWidth(3f);
+
         gridPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         gridPaint.setColor(gridPaintColor);
         gridPaint.setStyle(Paint.Style.STROKE);
@@ -255,7 +285,7 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
 
     }
 
-    private void configRectFs() {
+    public void configRectFs() {
         graphDrawableRectF.left = paddingLeft;
         graphDrawableRectF.top = paddingTop;
         graphDrawableRectF.right = width - paddingRight;
@@ -265,6 +295,12 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
         touchableRectF.right = width;
         touchableRectF.top = 0f;
         touchableRectF.bottom = height;
+
+        outSideRectF.left = graphDrawableRectF.left;
+        outSideRectF.right = graphDrawableRectF.right;
+        outSideRectF.top = graphDrawableRectF.top;
+        outSideRectF.bottom = graphDrawableRectF.bottom;
+
     }
 
     @Override
@@ -277,87 +313,53 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
         drawTouch(canvas);
     }
 
-    protected void drawGridLine(Canvas canvas) {
+    @Override
+    public void drawGridLine(Canvas canvas) {
+        if (isVerticalGridTrue()) {
+            gridPaint.setPathEffect(null);
+        } else {
+            gridPaint.setPathEffect(new DashPathEffect(new float[]{5, 5, 5, 5},
+                    1));
+        }
         for (int i = 0; i < gridMatrix[0]; i++) {
+            if (i == 0 || i == gridMatrix[0] - 1) {
+                continue;
+            }
             canvas.drawLine(graphDrawableRectF.left + i * gridXSpace, graphDrawableRectF.bottom, graphDrawableRectF.left + i * gridXSpace, graphDrawableRectF.top, gridPaint);
         }
+        if (isHorizonGridTrue()) {
+            gridPaint.setPathEffect(null);
+        } else {
+            gridPaint.setPathEffect(new DashPathEffect(new float[]{5, 5, 5, 5},
+                    1));
+        }
         for (int i = 0; i < gridMatrix[1]; i++) {
+            if (i == 0 || i == gridMatrix[1] - 1) {
+                continue;
+            }
             canvas.drawLine(graphDrawableRectF.left, graphDrawableRectF.bottom - i * gridYSpace, graphDrawableRectF.right, graphDrawableRectF.bottom - i * gridYSpace, gridPaint);
         }
     }
 
+    @Override
+    public void drawLines(Canvas canvas) {
 
-    protected abstract void drawText(Canvas canvas);
+    }
 
-    protected void drawOutRect(Canvas canvas) {
-        if (attribute != null && attribute.isNeedOutRect) {
+    @Override
+    public BaseAttribute buildAttribute() {
+        return null;
+    }
+
+    @Override
+    public void drawOutRect(Canvas canvas) {
+        if (attribute != null && isNeedOutRect()) {
             canvas.drawRect(outSideRectF, outRectPaint);
         }
     }
 
-    /**
-     * 画线条
-     *
-     * @param canvas
-     */
-    protected void drawLines(Canvas canvas) {
-        if (mDatas == null || mDatas.size() <= 0) return;
-        for (ILine line : mDatas) {
-            final List<IPoint> points = line.points();
-            Path path = new Path();
-            Path gradientPath = new Path();
-            linePaint.setColor(line.color());
-            float radius = linePaint.getStrokeWidth() + DIP_2;
-            circlePaint.setColor(Color.parseColor(int2Hex(line.color()).replace("#", "#bb")));
-            for (int i = 0; i < points.size(); i++) {
-                IPoint point = points.get(i);
-                //此条线只有一个点，这里做绘制圆点的处理
-                if (points.size() == 1) {
-                    canvas.drawCircle(point.pointF().x, point.pointF().y, radius, linePaint);
-                    break;
-                }
-                if (line.isShowPoints()) {
-                    canvas.drawCircle(point.pointF().x, point.pointF().y, radius, circlePaint);
-                }
-                if (i == 0) {
-                    path.moveTo(point.pointF().x, point.pointF().y);
-                }
-
-                if (attribute.isBézier) {
-                    if (i == points.size() - 1) {
-                        break;
-                    }
-                    PointF startp = point.pointF();
-                    PointF endp = points.get(i + 1).pointF();
-                    float wt = (startp.x + endp.x) / 2;
-                    PointF p3 = new PointF();
-                    PointF p4 = new PointF();
-                    p3.y = startp.y;
-//                      p3.x = startp.x + (endp.x - startp.x) * t;
-                    p3.x = wt;
-                    p4.y = endp.y;
-//                      p4.x = startp.x + (endp.x-startp.x) * (1 - t);
-                    p4.x = wt;
-                    path.cubicTo(p3.x, p3.y, p4.x, p4.y, endp.x, endp.y);
-                } else {
-
-                    path.lineTo(point.pointF().x, point.pointF().y);
-                }
-
-            }
-            canvas.drawPath(path, linePaint);
-            drawGradient(canvas, line, points, path, gradientPath);
-        }
-        //将折线超出x轴坐标的部分截取掉（左边）
-        mBgPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_OVER));
-        RectF rectF = new RectF(0, 0, graphDrawableRectF.left, height);
-        canvas.drawRect(rectF, mBgPaint);
-        //将折线超出x轴坐标的部分截取掉（右边）
-        RectF rectF2 = new RectF(graphDrawableRectF.right, 0, width, height);
-        canvas.drawRect(rectF2, mBgPaint);
-    }
-
-    protected void drawTouch(Canvas canvas) {
+    @Override
+    public void drawTouch(Canvas canvas) {
         if (isLongPressing) {
             drawTouchVerticalLine(canvas);
             drawTouchView(canvas);
@@ -371,53 +373,59 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
      */
     private void drawTouchVerticalLine(Canvas canvas) {
         if (mTouchIndex < 0) return;
-        float x = firstPointX + mTouchIndex * currentIntervalX;
+        float x = getXbyIndex(mTouchIndex);
         canvas.drawLine(x, graphDrawableRectF.bottom, x, graphDrawableRectF.top, touchPaint);
 
     }
 
     protected abstract void drawTouchView(Canvas canvas);
+    protected abstract void drawText(Canvas canvas);
+    protected abstract float getXbyIndex(int mTouchIndex);
 
-    /**
-     * 画渐变
-     *
-     * @param canvas
-     */
-    private void drawGradient(Canvas canvas, ILine line, List<IPoint> points, Path path, Path gradientPath) {
-        if (attribute.isNeedVerticalLine) {
-            if (points != null) {
-                IPoint p = points.get(points.size() - 1);
-                //最后一个点
-                gradientPath.moveTo(p.pointF().x, p.pointF().y);
-                //x轴最后一个点
-                gradientPath.lineTo(p.pointF().x, graphDrawableRectF.bottom);
-                //x轴第一个点
-                gradientPath.lineTo(points.get(0).pointF().x, graphDrawableRectF.bottom);
-                //第一个点
-                gradientPath.lineTo(points.get(0).pointF().x, points.get(0).pointF().y);
-                //跟图形结合
-                gradientPath.addPath(path);
+    private float mPosY;
+    private float mCurPosY;
+    private float mPosX;
+    private float mCurPosX;
+    ScrollLinearLayoutManager manager;
 
-                Paint spaint = new Paint();
-
-                LinearGradient mLinearGradient = new LinearGradient(0, 0,
-                        0, getHeight(), Color.parseColor("#60"
-                        + line.colorHexString().replace("#", "")),
-                        Color.parseColor("#00"
-                                + line.colorHexString().replace("#", "")),
-                        Shader.TileMode.CLAMP);
-                spaint.setShader(mLinearGradient);
-                spaint.setAntiAlias(true);
-                spaint.setStyle(Paint.Style.FILL_AND_STROKE);
-                canvas.drawPath(gradientPath, spaint);
-            }
-        }
+    public void setManager(ScrollLinearLayoutManager manager) {
+        this.manager = manager;
     }
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent event) {
 
+        switch (event.getAction()) {
+            case MotionEvent.ACTION_DOWN:
+                mPosX = event.getX();
+                mPosY = event.getY();
+                break;
+            case MotionEvent.ACTION_MOVE:
+                mCurPosX = event.getX();
+                mCurPosY = event.getY();
+                if ( (Math.abs(mCurPosY - mPosY) >= 5||Math.abs(mPosX-mCurPosX)>=5)
+                        &&( Math.abs(mPosY-mCurPosY)-Math.abs(mPosX-mCurPosX) <0)){
+                    getParent().requestDisallowInterceptTouchEvent(!verticalScrollEnable);
+                    if (manager!=null){
+                        manager.setCanVerticalScroll(verticalScrollEnable);
+                    }
+                    return /*!verticalScrollEnable||*/super.dispatchTouchEvent(event);
+                }else{
+                   /* if (manager!=null){
+                        manager.setCanVerticalScroll(!verticalScrollEnable);
+                    }*/
+                    getParent().requestDisallowInterceptTouchEvent(verticalScrollEnable);
+                    return super.dispatchTouchEvent(event);
+                }
+        }
+
+        return super.dispatchTouchEvent(event);
+    }
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         Log.d(TAG, String.format("onTouchEvent: %d", event.getAction()));
-
+        if (!isNeedTouch()){
+            return false;
+        }
         //将触摸事件抛出到全局变量
         setLatestEvent(event);
         int pointerCount = event.getPointerCount();
@@ -448,6 +456,9 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
         mHandler.removeCallbacks(mLongPressRunnable);
         invalidate();
         onReleaseTouch();
+        if (manager!=null){
+            manager.setCanVerticalScroll(true);
+        }
     }
 
     /**
@@ -462,30 +473,61 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
     public abstract void onReleaseTouch();
 
     @Override
-    public void update(IRootChartData rootChartData, int type) {
-        this.data = rootChartData;
-        if (data != null) {
-            mDatas = data.lines();
-        } else {
-            mDatas = null;
-        }
+    public void calculateByUpdate() {
         updateY();
         calculateAll();
+        calculateGrid();
         filter().invalidate();
     }
 
+    @Override
+    public boolean isNeedGrid() {
+        return attribute.isNeedGrid;
+    }
+
+    @Override
+    public boolean isHorizonGridTrue() {
+        return attribute.isHorizonGridTrue;
+    }
+
+    @Override
+    public boolean isVerticalGridTrue() {
+        return attribute.isVerticalGridTrue;
+    }
+
+    @Override
+    public boolean isNeedOutRect() {
+        return attribute.isNeedOutRect;
+    }
+
+    @Override
+    public boolean isNeedTouch() {
+        return attribute.isNeedTouch;
+    }
+
+    @Override
+    public boolean isNeedScroll() {
+        return attribute.isNeedScroll;
+    }
+
+    @Override
+    public boolean isBézier() {
+        return attribute.isBézier;
+    }
+
+    /*   */
+
     /**
      * 计算数值
-     */
+     *//*
     public void calculateAll() {
         if (mDatas != null && mDatas.get(0) != null) {
             xCalibrationCount = mDatas.get(0).points().size();
         } else {
             xCalibrationCount = 0;
         }
-        calculateGrid();
-    }
 
+    }*/
     public void updateY() {
         maxY();
         minY();
@@ -501,34 +543,8 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
         gridYSpace = graphDrawableRectF.height() / (gridMatrix[1] - 1);
     }
 
-    /**
-     * 计算最新数据
-     *
-     * @return
-     */
-    @Override
-    public BaseView calculateRootData() {
-        if (mDatas == null) return this;
-        float useageHeight = getUseageHeight();
-        float dis_h = maxY - minY;
-        for (ILine line : mDatas) {
-            //给Line计算位置信息
-            float newYPixels = 0;
-            float newXPixels = 0;
-            int count = 0;
-            for (IPoint point : line.points()) {
-                float yPercent = (point.valueY() - minY) / dis_h;
-                //数据点x坐标
-                newXPixels = firstPointX + count * currentIntervalX;
-                //数据点y坐标
-                newYPixels = height - paddingBottom
-                        - (useageHeight * yPercent);
-                point.pointF().set(newXPixels, newYPixels);
-                count++;
-            }
-
-        }
-        return this;
+    public float getGraphDrawableRectFWidth(){
+        return graphDrawableRectF.width();
     }
 
     /**
@@ -541,13 +557,6 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
         return this;
     }
 
-    protected float currentIntervalX() {
-        return currentIntervalX;
-    }
-
-    protected float getYCalibrationStepDistance() {
-        return yCalibrationStepDistance;
-    }
 
     protected void yCalibrationStepDistance() {
         if (maxY - minY > 0) {
@@ -564,41 +573,14 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
      *
      * @return
      */
-    protected float maxY() {
-        if (!setMaxY()) {
-            float maxY = TEMP_MAXY;
-            for (ILine line : mDatas) {
-                for (IPoint point : line.points()) {
-                    if (maxY < point.valueY()) {
-                        maxY = point.valueY();
-                    }
-                }
-
-            }
-            this.maxY = maxY;
-        }
-        return maxY;
-    }
+    protected abstract float maxY();
 
     /**
      * 获取最小的Y轴值
      *
      * @return
      */
-    protected float minY() {
-        if (!setMinY()) {
-            float minY = TEMP_MINY;
-            for (ILine line : mDatas) {
-                for (IPoint point : line.points()) {
-                    if (minY > point.valueY()) {
-                        minY = point.valueY();
-                    }
-                }
-            }
-            this.minY = minY;
-        }
-        return minY;
-    }
+    protected abstract float minY();
 
     protected boolean setMaxY() {
         return false;
@@ -639,9 +621,6 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
      * @return
      */
     protected float getUseageHeight() {
-       /* if (graphDrawableRectF==null){
-            return 0;
-        }*/
         return graphDrawableRectF.height() - topMargin - bottomMargin;
     }
 
@@ -679,11 +658,14 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
         if (e2.getX() >= touchableRectF.left && e2.getX() <= touchableRectF.right) {
             scrollX += -distanceX;
             reLimitScrollX();
-            firstPointX = scrollX + graphDrawableRectF.left;
+            //firstPointX = scrollX + graphDrawableRectF.left;
+            onGraphScroll();
             invalidate();
         }
         return false;
     }
+    protected abstract void onGraphScroll();
+    protected abstract float  firstIntervalX();
 
     /**
      * 长按后的滑动
@@ -697,7 +679,7 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
     public boolean onLongScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
         if ((e2.getAction() == MotionEvent.ACTION_MOVE || e2
                 .getAction() == MotionEvent.ACTION_DOWN)) {
-            if (mDatas == null || mDatas.size() <= 0) return false;
+            // if (mDatas == null || mDatas.size() <= 0) return false;
             mTouchIndex = getIndexByX(e2.getX());
 
             invalidate();
@@ -706,17 +688,6 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
         return true;
     }
 
-    private int getIndexByX(float x) {
-        if (x <= firstPointX) {
-            return 0;
-        }
-        List<IPoint> list = mDatas.get(0).points();
-        if (x >= firstPointX + list.size() * currentIntervalX) {
-            return mDatas.get(0).points().size() - 1;
-        }
-        return binarySearch(0, list.size(), x);
-
-    }
 
     /**
      * 二分查找下标
@@ -726,7 +697,7 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
      * @param key
      * @return
      */
-    private int binarySearch(int low, int high, float key) {
+    protected int binarySearch(int low, int high, float key) {
         if (low > high) {
             return -1;
         }
@@ -744,28 +715,6 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
         }
     }
 
-    /**
-     * 检测是否匹配上
-     *
-     * @param key
-     * @param mid
-     * @return -1 代表key 小 1 代表key大  0代表key合适
-     */
-    private int check(float key, int mid) {
-        List<IPoint> list = mDatas.get(0).points();
-        IPoint point1 = list.get(mid - 1);
-        IPoint point2 = list.get(mid);
-        IPoint point3 = list.get(mid + 1);
-        float d_1 = point2.pointF().x - point1.pointF().x;
-        float d_2 = point3.pointF().x - point2.pointF().x;
-        if (point2.pointF().x - d_1 / 2 > key) {
-            return -1;
-        } else if (key >= point2.pointF().x + d_2 / 2) {
-            return 1;
-        } else {
-            return 0;
-        }
-    }
 
     @Override
     public void onLongPress(MotionEvent e) {
@@ -777,19 +726,26 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
         releaseTouch();
         return false;
     }
-
+    float currentFactor = 1f;
     @Override
     public boolean onScale(ScaleGestureDetector detector) {
-        if (mDatas == null || mDatas.get(0) == null || mDatas.size() <= 0) return false;
+        // if (mDatas == null || mDatas.get(0) == null || mDatas.size() <= 0) return false;
+
         beforeScale(detector);
         float factor = detector.getScaleFactor();
-        float incremental = 0f;
-        if (factor > 1) {
-            incremental = scaleLevel * factor;
-        } else if (factor < 1) {
-            incremental = scaleLevel * (factor - 2);
-        }
-        currentIntervalX += incremental;
+        currentFactor *= factor;
+        currentFactor = Math.max(1.0f, Math.min(currentFactor, 10.0f));
+        Log.i(TAG,"factor:"+factor);
+        Log.i(TAG,"currentFactor:"+currentFactor);
+
+        //float incremental = scaleLevel*currentFactor;
+        /*if (currentFactor > 1) {
+            incremental = scaleLevel * currentFactor;
+        } else if (currentFactor < 1) {
+            incremental = scaleLevel * (currentFactor - 2f);
+        }*/
+        currentIntervalX = firstIntervalX()*currentFactor;
+        Log.i(TAG,"currentIntervalX:"+currentIntervalX);
         reLimitIntervalX();
         dealScaleDetector(detector);
         invalidate();
@@ -801,7 +757,7 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
     public boolean onScaleBegin(ScaleGestureDetector detector) {
         isScaling = true;
         //是否开启缩放
-        return true;
+        return attribute.isNeedScale;
     }
 
     @Override
@@ -810,7 +766,7 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
     }
 
     //上一次图x轴步距
-    private float lastIntervalX;
+    protected float lastIntervalX;
 
     /**
      * 矫正scrolX前 记录一下位置信息
@@ -821,10 +777,10 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
         lastIntervalX = currentIntervalX;
     }
 
-    private void dealScaleDetector(ScaleGestureDetector detector) {
+    protected void dealScaleDetector(ScaleGestureDetector detector) {
 
         float l_pre_d = detector.getFocusX() - firstPointX;
-        float l_end_d = firstPointX + (xCalibrationCount - 1) *lastIntervalX -detector.getFocusX();
+        float l_end_d = firstPointX + (xCalibrationCount - 1) * lastIntervalX - detector.getFocusX();
 
         //本该移动的距离
         float distance = (xCalibrationCount - 1) * (lastIntervalX - currentIntervalX);
@@ -836,14 +792,14 @@ public abstract class GraphBaseView extends BaseView implements ScaleGestureDete
     /**
      * 对scrollx做限制，此处应当和onScroll里面的限制规则统一
      */
-    private void reLimitScrollX() {
+    protected void reLimitScrollX() {
         if (scrollX > (graphDrawableRectF.left + leftMargin)) {
             scrollX = graphDrawableRectF.left + leftMargin;
         }
         firstPointX = scrollX + graphDrawableRectF.left + leftMargin;
     }
 
-    private void reLimitIntervalX() {
+    protected void reLimitIntervalX() {
         if (currentIntervalX > width) {
             currentIntervalX = width;
         }
